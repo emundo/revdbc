@@ -1,0 +1,4 @@
+candumpgen>=0.0.1,<0.1
+enum34>=1.1.10,<2
+future>=0.18.2,<0.19
+scikit-learn>=0.23.0,<0.24

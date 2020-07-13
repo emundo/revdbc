@@ -1,0 +1,12 @@
+.eggs/
+build/
+dist/
+revdbc.egg-info/
+
+*.pyc
+.pytest_cache/
+
+docs/_build/
+
+traces/
+runs/
