@@ -1,0 +1,4 @@
+candumpgen>=0.0.1,<0.1
+cantools>=35.3.0,<36
+scikit-learn>=0.23.2,<0.24
+typing_extensions>=3.7.4.3,<4
