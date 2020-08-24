@@ -25,11 +25,13 @@ warnings.filterwarnings("ignore",
     module=sklearn.__name__
 )
 
+
 warnings.filterwarnings("ignore",
     message="invalid value encountered in true_divide",
     category=RuntimeWarning,
     module=np.__name__
 )
+
 
 class NullContextManager(object):
     def __init__(self, resource):
@@ -40,6 +42,7 @@ class NullContextManager(object):
 
     def __exit__(self, *args):
         pass
+
 
 def maybe_open(obj, *args, **kwargs):
     """
@@ -60,21 +63,23 @@ def maybe_open(obj, *args, **kwargs):
     except TypeError:
         return NullContextManager(obj)
 
+
 LOGGER = logging.getLogger(__name__)
 CANDUMP_ROW_REGEX = re.compile(r"^\((\d+\.\d+)\) (\w+) ([0-9A-F]{3,8})#([0-9A-F]*)\s*$")
 
 SizedBitsNP = np.dtype([
-    ("size", np.uint8), # The number of valid bytes in `bits`.
-    ("bits", np.uint64) # Can hold up to 64 bits of data.
+    ("size", np.uint8),  # The number of valid bytes in `bits`.
+    ("bits", np.uint64)  # Can hold up to 64 bits of data.
 ])
 
 # Information about the source device/interface is not stored, all rows are assumed to belong to the
 # same device/interface.
 CandumpRowNP = np.dtype([
-    ("timestamp",  np.float64), # The timestamp with 64 bit floating point precision
-    ("identifier", np.uint32),  # The identifier (11/29 bits), packed into a 32 bit integer
-    ("data",       SizedBitsNP) # The packet body
+    ("timestamp",  np.float64),  # The timestamp with 64 bit floating point precision
+    ("identifier", np.uint32),   # The identifier (11/29 bits), packed into a 32 bit integer
+    ("data",       SizedBitsNP)  # The packet body
 ])
+
 
 class FieldType(Enum):
     MULTIPLEXER = auto()
@@ -82,6 +87,7 @@ class FieldType(Enum):
     CONST = auto()
     VALUE = auto()
     UNKNOWN = auto()
+
 
 class FieldEndianness(Enum):
     BIG = auto()
@@ -107,6 +113,7 @@ class FieldEndianness(Enum):
 
         return unknown
 
+
 Field = namedtuple("Field", [
     "lsb_anchor",
     "msb_anchor",
@@ -115,13 +122,16 @@ Field = namedtuple("Field", [
     "type"
 ])
 
+
 class NotEnoughData(Exception):
     pass
+
 
 class AnalysisFailed(Exception):
     pass
 
 # TODO: Plots!
+
 
 def load_candump(candump):
     """
@@ -160,6 +170,7 @@ def load_candump(candump):
 
     return np.array(entries, dtype=CandumpRowNP)
 
+
 def analyze_identifier(identifier, bodies, size, output_directory, show_plots):
     """
     Args:
@@ -196,7 +207,7 @@ def analyze_identifier(identifier, bodies, size, output_directory, show_plots):
         LOGGER.debug("%s", mux)
 
     top_level_analyzed = set()
-    mux_level_analyzed = None # Optional<Dict<int, Set<Field>>>
+    mux_level_analyzed = None  # Optional<Dict<int, Set<Field>>>
     mux_found = False
 
     # Demultiplex the bodies by grouping them by their multiplexer field values
@@ -213,7 +224,7 @@ def analyze_identifier(identifier, bodies, size, output_directory, show_plots):
             try:
                 demuxed_analysis_results[mux_value] = _solve_overlaps(analyze_demultiplexed(
                     demuxed_bodies,
-                    size * 8 # Pass the size in bits
+                    size * 8  # Pass the size in bits
                 ), mux)
             except NotEnoughData as e:
                 LOGGER.debug("Data too sparse: %s", e)
@@ -275,7 +286,7 @@ def analyze_identifier(identifier, bodies, size, output_directory, show_plots):
     if len(muxes) == 0:
         LOGGER.debug("No multiplexers, running global analysis:")
         # In case no multiplexers were detected, perform analysis on the untouched bodies
-        analysis_result = analyze_demultiplexed(bodies, size * 8) # Pass the size in bits
+        analysis_result = analyze_demultiplexed(bodies, size * 8)  # Pass the size in bits
 
         top_level_analyzed = analysis_result.fields
 
@@ -291,6 +302,7 @@ def analyze_identifier(identifier, bodies, size, output_directory, show_plots):
         mux_level_analyzed,
         output_directory
     )
+
 
 def _find_predictable_fields(bodies, size):
     """
@@ -362,6 +374,7 @@ def _find_predictable_fields(bodies, size):
     LOGGER.debug("-" * 100)
     return set(predictable_fields)
 
+
 def _is_field_constant(bodies, field):
     """
     Args:
@@ -380,6 +393,7 @@ def _is_field_constant(bodies, field):
             len(np.unique(_extract_field(bodies, field))) == 1
         )
     )
+
 
 def _extract_field(bodies, field):
     """
@@ -423,6 +437,7 @@ def _extract_field(bodies, field):
     mask = 0xFFFFFFFFFFFFFFFF if field.size == 64 else ((1 << field.size) - 1)
 
     return (bodies >> field.lsb_anchor) & mask
+
 
 def _is_field_predictable(bodies, field):
     """
@@ -503,6 +518,7 @@ def _is_field_predictable(bodies, field):
 
     return False
 
+
 def _merge_fields(a, b):
     """
     Try to merge two fields, based on their field positions and types.
@@ -520,7 +536,7 @@ def _merge_fields(a, b):
     """
 
     # Merge the types:
-    merged_type = None # Optional<FieldType>
+    merged_type = None  # Optional<FieldType>
 
     # Constant fields can be merged with any other type. To make type merging easier, swap a and b
     # if b is constant.
@@ -590,7 +606,7 @@ def _merge_fields(a, b):
 
     # This is where endianness comes into play: unknown endianness can be merged with any other
     # endianness, while big can not be merged with little.
-    current_endianness = set([ a.endianness, b.endianness ])
+    current_endianness = { a.endianness, b.endianness }
 
     # Check whether a merged field with unknown endianness can be created:
     # - Both fields must be of unknown endianness
@@ -599,7 +615,7 @@ def _merge_fields(a, b):
     # - The affected bits must not overlap
     # - The affected bits must be adjacent
     if (
-        current_endianness == set([ FieldEndianness.UNKNOWN ]) and
+        current_endianness == { FieldEndianness.UNKNOWN } and
         len(affected_bytes_both) == 1 and
         len(affected_bytes_any) == 1 and
         len(affected_border_bits_a & affected_border_bits_b) == 0
@@ -627,7 +643,7 @@ def _merge_fields(a, b):
     #   - The most significant bit affected by a must be adjacent to the least significant bit
     #     affected by b
     if (
-        current_endianness <= set([ FieldEndianness.LITTLE, FieldEndianness.UNKNOWN ]) and
+        current_endianness <= { FieldEndianness.LITTLE, FieldEndianness.UNKNOWN } and
         len(affected_bytes_any) > 1 and
         (
             (
@@ -657,7 +673,7 @@ def _merge_fields(a, b):
     #   - The most significant bit affected by b must be adjacent to the least significant bit
     #     affected by a
     if (
-        current_endianness <= set([ FieldEndianness.BIG, FieldEndianness.UNKNOWN ]) and
+        current_endianness <= { FieldEndianness.BIG, FieldEndianness.UNKNOWN } and
         len(affected_bytes_any) > 1 and
         (
             (
@@ -688,19 +704,21 @@ def _merge_fields(a, b):
         type=merged_type
     )
 
+
 def _get_affected_bytes(field):
     """
     Args:
         field (Field): A field.
 
     Returns:
-        Set<int>: the indizes of all bytes affected by this field.
+        Set<int>: the indices of all bytes affected by this field.
     """
 
     lsb = field.lsb_anchor // 8
     msb = field.msb_anchor // 8
 
     return set(range(min(lsb, msb), max(lsb, msb) + 1))
+
 
 def _get_affected_bits(field, byte):
     """
@@ -709,14 +727,14 @@ def _get_affected_bits(field, byte):
         byte (int): A byte index.
 
     Returns:
-        Set<int>: the indizes of all bits affected by the byte of this field.
+        Set<int>: the indices of all bits affected by the byte of this field.
     """
 
     if field.endianness is FieldEndianness.BIG:
         # "Convert" the big endian field into a little endian field.
         byte = 2 * (field.lsb_anchor // 8) - byte
 
-        field = field._replace(msb_anchor = field.lsb_anchor + field.size - 1)
+        field = field._replace(msb_anchor=field.lsb_anchor + field.size - 1)
 
     byte_lsb_anchor = byte * 8
     byte_msb_anchor = ((byte + 1) * 8) - 1
@@ -727,6 +745,7 @@ def _get_affected_bits(field, byte):
     print(field, byte, affected_relative_lsb_anchor, affected_relative_msb_anchor)
 
     return set(range(affected_relative_lsb_anchor, affected_relative_msb_anchor + 1))
+
 
 def _demux_by(bodies, size, field):
     """
@@ -761,6 +780,7 @@ def _demux_by(bodies, size, field):
 
     return { v: bodies[inverse_body_indizes == i] for i, v in enumerate(unique_mux_values) }
 
+
 DemultiplexedAnalysisResult = namedtuple("DemultiplexedAnalysisResult", [
     "tav",
     "relative_tav",
@@ -793,6 +813,7 @@ DemultiplexedAnalysisResult.bcot.__doc__ = (
 DemultiplexedAnalysisResult.fields.__doc__ = (
     "Set<Field>: The fields detected in the CAN packet bodies."
 )
+
 
 def analyze_demultiplexed(bodies, size):
     """
@@ -906,6 +927,7 @@ def analyze_demultiplexed(bodies, size):
         fields=set(fields)
     )
 
+
 def _calculate_tav(bodies, size):
     """
     Args:
@@ -926,6 +948,7 @@ def _calculate_tav(bodies, size):
         tav[bit] = np.sum(bits[1:] ^ bits[:-1])
     return tav
 
+
 def _calculate_relative_tav(tav):
     """
     Args:
@@ -939,6 +962,7 @@ def _calculate_relative_tav(tav):
     tav = tav.astype(np.float64)
 
     return tav / np.linalg.norm(tav)
+
 
 def _calculate_tav_derivative(relative_tav):
     """
@@ -955,6 +979,7 @@ def _calculate_tav_derivative(relative_tav):
         raise ValueError("The TAV must be available for at least one bit.")
 
     return relative_tav[1:] - relative_tav[:-1]
+
 
 def _calculate_bcot(bodies, size):
     """
@@ -990,6 +1015,7 @@ def _calculate_bcot(bodies, size):
     bcot = np.array([ np.corrcoef(c_t[row], c_t[row + 1])[1][0] for row in np.arange(size - 1) ])
 
     return bcot.astype(np.float64)
+
 
 def _find_rough_field_separators(tav_derivative, bcot):
     """
@@ -1040,6 +1066,7 @@ def _find_rough_field_separators(tav_derivative, bcot):
     # Return the separating bit positions, sorted in ascending order for convenience
     return set([ int(x) for x in separators ])
 
+
 def _restore_merge_semantics(bodies, merged_field, a, b):
     """
     Args:
@@ -1077,6 +1104,7 @@ def _restore_merge_semantics(bodies, merged_field, a, b):
 
     return None
 
+
 def _solve_overlaps(analysis_result, field):
     """
     Adds `field` to the analysis result, resizing analysed fields as required to avoid overlaps.
@@ -1099,6 +1127,7 @@ def _solve_overlaps(analysis_result, field):
 
     return analysis_result
 
+
 def _solve_overlap(analyzed_field, field):
     """
     Args:
@@ -1111,7 +1140,7 @@ def _solve_overlap(analyzed_field, field):
 
     affected_bytes_both = _get_affected_bytes(field) & _get_affected_bytes(analyzed_field)
     if len(affected_bytes_both) == 0:
-        return set([ analyzed_field ])
+        return { analyzed_field }
 
     affected_bits_both = {
         byte: _get_affected_bits(field, byte) & _get_affected_bits(analyzed_field, byte)
@@ -1122,7 +1151,8 @@ def _solve_overlap(analyzed_field, field):
 
     # TODO
 
-    return set([ analyzed_field ])
+    return { analyzed_field }
+
 
 def _restore_dbc(identifier, size, top_level_fields, mux_level_fields, output_directory):
     """
@@ -1138,7 +1168,7 @@ def _restore_dbc(identifier, size, top_level_fields, mux_level_fields, output_di
         str: The path pointing to the restored DBC file.
     """
 
-    signals = [] # List<cantools.db.Signal>
+    signals = []  # List<cantools.db.Signal>
 
     multiplexer_signal_name = None
     for index, field in enumerate(top_level_fields):
@@ -1159,7 +1189,7 @@ def _restore_dbc(identifier, size, top_level_fields, mux_level_fields, output_di
             length=field.size,
             byte_order=field.endianness.to_cantools(),
             is_multiplexer=field.type is FieldType.MULTIPLEXER,
-            is_float=False # TODO
+            is_float=False  # TODO
         ))
 
     if mux_level_fields is not None:
@@ -1181,7 +1211,7 @@ def _restore_dbc(identifier, size, top_level_fields, mux_level_fields, output_di
                     byte_order=field.endianness.to_cantools(),
                     multiplexer_ids=[ int(mux_value) ],
                     multiplexer_signal=multiplexer_signal_name,
-                    is_float=False # TODO
+                    is_float=False  # TODO
                 ))
 
     dbc_output = os.path.join(output_directory, "restored.dbc")
